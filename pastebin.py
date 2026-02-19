@@ -1,14 +1,12 @@
-#!/usr/bin/env python3.11
+#!/usr/bin/env python3
+
 import socket
 import os
-import random
-import string
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import mimetypes
 
-HOST = 'pantasya.mooo.com'
+HOST = '0.0.0.0'
 PORT = 5254
 HTTP_PORT = 5255
 PASTEDIR = Path('pastes')
@@ -24,8 +22,6 @@ def generate_id():
                 count = int(f.read().strip())
         else:
             count = 0
-            with open(count_file, 'w') as f:
-                f.write('0')
         
         if count >= 0xFFFF:
             return None
@@ -35,11 +31,11 @@ def generate_id():
             f.write(str(count + 1))
         return hex_id
     except (ValueError, IOError):
-        return None  # Fallback on errors
+        return None
 
 def handle_client(client_sock):
     try:
-        data = client_sock.recv(MAX_SIZE + 1)  # +1 to detect overflow
+        data = client_sock.recv(MAX_SIZE + 1)
     except:
         data = b''
 
@@ -48,14 +44,19 @@ def handle_client(client_sock):
         client_sock.shutdown(socket.SHUT_RDWR)
         return
 
-    content = data.decode('utf-8', errors='replace')
-    paste_id = generate_id()
+    if not data.strip():  # Check if data is empty or only whitespace
+        client_sock.sendall(b"Error: Paste is empty\n")
+        client_sock.shutdown(socket.SHUT_RDWR)
+        return
+
+    paste_id = generate_id()  # Generate ID FIRST
 
     if paste_id is None:
         client_sock.sendall(b"Error: Bin is full\n")
         client_sock.shutdown(socket.SHUT_RDWR)
-        return
+        return  # Don't save empty/invalid content
 
+    content = data.decode('utf-8', errors='replace')
     paste_path = PASTEDIR / paste_id
     with open(paste_path, 'w') as f:
         f.write(content)
